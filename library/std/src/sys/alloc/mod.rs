@@ -86,6 +86,9 @@ cfg_select! {
     target_os = "motor" => {
         mod motor;
     }
+    target_os = "eunomia" => {
+        mod eunomia;
+    }
     all(target_vendor = "fortanix", target_env = "sgx") => {
         mod sgx;
     }

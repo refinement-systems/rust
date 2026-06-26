@@ -41,6 +41,7 @@ cfg_select! {
     }
     any(
         target_os = "vexos",
+        target_os = "eunomia",
         target_family = "wasm",
         target_os = "zkvm",
         target_os = "trusty",

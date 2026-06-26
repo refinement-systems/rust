@@ -24,6 +24,10 @@ cfg_select! {
         mod motor;
         pub use self::motor::*;
     }
+    target_os = "eunomia" => {
+        mod eunomia;
+        pub use self::eunomia::*;
+    }
     target_os = "trusty" => {
         mod trusty;
         pub use self::trusty::*;
