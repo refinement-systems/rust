@@ -24,6 +24,7 @@
 )]
 
 cfg_select! {
+    // Dysnomia uses the key-based TLS implementation below.
     any(
         all(target_family = "wasm", not(target_feature = "atomics")),
         target_os = "uefi",
@@ -118,6 +119,8 @@ pub(crate) mod guard {
         any(
             target_os = "hermit",
             target_os = "xous",
+            // The Dysnomia thread trampoline runs TLS destructors itself.
+            target_os = "dysnomia",
         ) => {
             // `std` is the only runtime, so it just calls the destructor functions
             // itself when the time comes.
@@ -194,6 +197,14 @@ pub(crate) mod key {
             pub(super) use racy::LazyKey;
             pub(super) use moto_rt::tls::{Key, get, set};
             use moto_rt::tls::{create, destroy};
+        }
+        // Dysnomia keys are application-provided PAL ABI v1 services.
+        target_os = "dysnomia" => {
+            mod racy;
+            mod dysnomia;
+            pub(super) use racy::LazyKey;
+            pub(super) use dysnomia::{Key, get, set};
+            use dysnomia::{create, destroy};
         }
         _ => {}
     }

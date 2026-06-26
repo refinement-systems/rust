@@ -67,6 +67,9 @@
 //@ revisions: aarch64_unknown_none_softfloat
 //@ [aarch64_unknown_none_softfloat] compile-flags: --target aarch64-unknown-none-softfloat
 //@ [aarch64_unknown_none_softfloat] needs-llvm-components: aarch64
+//@ revisions: aarch64_unknown_dysnomia
+//@ [aarch64_unknown_dysnomia] compile-flags: --target aarch64-unknown-dysnomia
+//@ [aarch64_unknown_dysnomia] needs-llvm-components: aarch64
 //@ revisions: aarch64v8r_unknown_none
 //@ [aarch64v8r_unknown_none] compile-flags: --target aarch64v8r-unknown-none
 //@ [aarch64v8r_unknown_none] needs-llvm-components: aarch64

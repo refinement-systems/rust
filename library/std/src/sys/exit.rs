@@ -82,6 +82,11 @@ pub fn exit(code: i32) -> ! {
         target_os = "motor" => {
             moto_rt::process::exit(code)
         }
+        target_os = "dysnomia" => {
+            // Zero extension keeps every i32 exit code distinct from the
+            // `u64::MAX` abnormal-exit value used by `abort_internal`.
+            unsafe { crate::sys::pal::abi::__dysnomia_pal_v1_thread_exit(code as u32 as u64) }
+        }
         all(target_vendor = "fortanix", target_env = "sgx") => {
             crate::sys::pal::abi::exit_with_code(code as _)
         }

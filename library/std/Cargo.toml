@@ -73,6 +73,9 @@ fortanix-sgx-abi = { version = "0.6.1", features = [
 [target.'cfg(target_os = "motor")'.dependencies]
 moto-rt = { version = "0.16", features = ['rustc-dep-of-std'], public = true }
 
+# Dysnomia platform services are application-provided PAL ABI v1 `extern "C"`
+# symbols. They intentionally are not sysroot dependencies.
+
 [target.'cfg(target_os = "hermit")'.dependencies]
 hermit-abi = { version = "0.5.0", features = [
     'rustc-dep-of-std',

@@ -836,7 +836,7 @@ impl Build {
             LlvmLibunwind::No => false,
         };
 
-        if self.config.backtrace {
+        if self.config.backtrace && !target.contains("dysnomia") {
             features.insert("backtrace");
         }
 
@@ -846,6 +846,13 @@ impl Build {
 
         // If zkvm target, generate memcpy, etc.
         if target.contains("zkvm") {
+            features.insert("compiler-builtins-mem");
+        }
+
+        // Dysnomia has no libc; memcpy & co. come from compiler-builtins.
+        if target.contains("dysnomia") {
+            features.remove("panic-unwind");
+            features.remove("backtrace");
             features.insert("compiler-builtins-mem");
         }
 

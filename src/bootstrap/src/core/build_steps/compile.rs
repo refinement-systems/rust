@@ -640,6 +640,9 @@ pub fn std_cargo(
     };
 
     for krate in crates {
+        if target.contains("dysnomia") && krate == "panic_unwind" {
+            continue;
+        }
         cargo.args(["-p", krate]);
     }
 
@@ -664,11 +667,11 @@ pub fn std_cargo(
         features += &builder.std_features(target);
         features.push_str(compiler_builtins_c_feature);
 
-        cargo
-            .arg("--features")
-            .arg(features)
-            .arg("--manifest-path")
-            .arg(builder.src.join("library/sysroot/Cargo.toml"));
+        cargo.arg("--features").arg(features);
+        if target.contains("dysnomia") {
+            cargo.arg("--no-default-features");
+        }
+        cargo.arg("--manifest-path").arg(builder.src.join("library/sysroot/Cargo.toml"));
 
         // Help the libc crate compile by assisting it in finding various
         // sysroot native libraries.
