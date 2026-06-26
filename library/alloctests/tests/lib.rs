@@ -47,6 +47,13 @@
 
 extern crate alloc;
 
+// Dysnomia OS: force the PAL-seam bridge (dysnomia-sys) into the link so std's
+// undefined `__dysnomia_*` extern "Rust" symbols resolve when this suite is built
+// as an on-target libtest binary. Cfg-gated so host/x.py builds are
+// unaffected. The `user/alloctests` manifest supplies the dependency.
+#[cfg(target_os = "dysnomia")]
+extern crate dysnomia_sys;
+
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 mod alloc_test;

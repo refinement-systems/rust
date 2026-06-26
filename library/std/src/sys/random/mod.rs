@@ -66,6 +66,12 @@ cfg_select! {
         mod motor;
         pub use motor::fill_bytes;
     }
+    target_os = "dysnomia" => {
+        // The per-process DRBG seam; `hashmap_random_keys` is the
+        // generic one below, which calls this `fill_bytes` — the `motor` shape.
+        mod dysnomia;
+        pub use dysnomia::fill_bytes;
+    }
     all(target_vendor = "fortanix", target_env = "sgx") => {
         mod sgx;
         pub use sgx::fill_bytes;

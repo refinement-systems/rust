@@ -73,6 +73,13 @@ fortanix-sgx-abi = { version = "0.6.1", features = [
 [target.'cfg(target_os = "motor")'.dependencies]
 moto-rt = { version = "0.16", features = ['rustc-dep-of-std'], public = true }
 
+# NOTE on dysnomia: unlike motor (a self-contained crates.io crate), the dysnomia seam
+# crate `dysnomia-sys` cannot be a std/sysroot dependency — its verified deps pull
+# `vstd`, whose `verus_builtin` is not buildable as a `rustc-dep-of-std` sysroot crate.
+# The dysnomia PAL therefore reaches the seam via a small set of `extern "Rust"`
+# symbols (the `__rust_alloc` pattern, see `sys/pal/dysnomia/mod.rs`): a std binary
+# links `dysnomia-sys` as an ordinary dependency, which `#[no_mangle]`-defines them.
+
 [target.'cfg(target_os = "hermit")'.dependencies]
 hermit-abi = { version = "0.5.0", features = [
     'rustc-dep-of-std',

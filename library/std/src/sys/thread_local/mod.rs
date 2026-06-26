@@ -24,6 +24,11 @@
 )]
 
 cfg_select! {
+    // Dysnomia uses the library key-based storage: it is not
+    // `target_thread_local`, so real per-thread `thread_local!` storage rides a TLS
+    // key (an index into the `TPIDR_EL0` block) over the verified `urt::tls` key
+    // table — see the `key` and `guard` arms below. It therefore falls through to
+    // the `_ => mod os` arm along with the other key-based targets.
     any(
         all(target_family = "wasm", not(target_feature = "atomics")),
         target_os = "uefi",
@@ -118,6 +123,11 @@ pub(crate) mod guard {
         any(
             target_os = "hermit",
             target_os = "xous",
+            // Dysnomia owns thread exit (the `sys/thread` trampoline and `_start`
+            // run the key destructors + `rt::thread_cleanup` themselves,
+            // so `os::destroy_value`'s `guard::enable` has nothing to
+            // schedule — `std` is the only runtime here too.
+            target_os = "dysnomia",
         ) => {
             // `std` is the only runtime, so it just calls the destructor functions
             // itself when the time comes.
@@ -194,6 +204,18 @@ pub(crate) mod key {
             pub(super) use racy::LazyKey;
             pub(super) use moto_rt::tls::{Key, get, set};
             use moto_rt::tls::{create, destroy};
+        }
+        // Dysnomia's key backend: keys over the seam
+        // (`dysnomia_sys::tls` → the verified `urt::tls` key table), reached through
+        // the `__dysnomia_tls_*` bridge like every other dysnomia PAL surface (the
+        // seam crate cannot be a sysroot dep). The motor shape, minus the direct
+        // dependency.
+        target_os = "dysnomia" => {
+            mod racy;
+            mod dysnomia;
+            pub(super) use racy::LazyKey;
+            pub(super) use dysnomia::{Key, get, set};
+            use dysnomia::{create, destroy};
         }
         _ => {}
     }

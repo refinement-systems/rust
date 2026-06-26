@@ -24,6 +24,10 @@ cfg_select! {
         mod motor;
         pub use self::motor::*;
     }
+    target_os = "dysnomia" => {
+        mod dysnomia;
+        pub use self::dysnomia::*;
+    }
     target_os = "trusty" => {
         mod trusty;
         pub use self::trusty::*;

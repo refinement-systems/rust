@@ -82,6 +82,19 @@ pub fn exit(code: i32) -> ! {
         target_os = "motor" => {
             moto_rt::process::exit(code)
         }
+        target_os = "dysnomia" => {
+            // Exit through the kernel thread-exit terminus; the parent reaper
+            // reads the status (the seam shim, `sys/pal/dysnomia`'s `__dysnomia_thread_exit`).
+            unsafe extern "Rust" {
+                fn __dysnomia_thread_exit(code: u64) -> !;
+            }
+            // Zero-extend, NOT sign-extend: `-1i32 as u64 == u64::MAX`, which collides
+            // with the reserved panic status (`dysnomia_sys::syscall::STATUS_PANIC`), so a
+            // `process::exit(-1)` would reap as a crash. `code as u32 as u64` keeps the
+            // top half clear, so no 32-bit exit code reaches the all-ones sentinel — that
+            // is reachable only via `abort_internal`. `_start` zero-extends in lockstep.
+            unsafe { __dysnomia_thread_exit(code as u32 as u64) }
+        }
         all(target_vendor = "fortanix", target_env = "sgx") => {
             crate::sys::pal::abi::exit_with_code(code as _)
         }
