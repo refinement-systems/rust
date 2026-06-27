@@ -39,6 +39,9 @@ pub extern "C" fn _start() -> ! {
 
     // Orderly exit: the parent reaper reads this status. A panic in a std binary instead
     // routes through `abort_internal` → `thread_exit(STATUS_PANIC)` (overridden in
-    // std-port 2.3), which the reaper distinguishes from `exit(0)`.
-    unsafe { __eunomia_thread_exit(code as u64) }
+    // std-port 2.3), which the reaper distinguishes from `exit(0)`. Zero-extend the
+    // `i32` (`code as u32 as u64`, in lockstep with the `sys::exit::exit` eunomia arm):
+    // sign-extending `-1` would land on `u64::MAX == STATUS_PANIC` and reap a clean
+    // `main`-returns-`-1` as a crash.
+    unsafe { __eunomia_thread_exit(code as u32 as u64) }
 }
