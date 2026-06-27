@@ -7,6 +7,10 @@ cfg_select! {
         mod motor;
         pub use motor::*;
     }
+    target_os = "eunomia" => {
+        mod eunomia;
+        pub use eunomia::*;
+    }
     all(target_vendor = "fortanix", target_env = "sgx") => {
         mod sgx;
         pub use sgx::*;
@@ -41,7 +45,6 @@ cfg_select! {
     }
     any(
         target_os = "vexos",
-        target_os = "eunomia",
         target_family = "wasm",
         target_os = "zkvm",
         target_os = "trusty",
