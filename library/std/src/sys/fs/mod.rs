@@ -45,6 +45,10 @@ cfg_select! {
         mod vexos;
         use vexos as imp;
     }
+    target_os = "eunomia" => {
+        mod eunomia;
+        use eunomia as imp;
+    }
     _ => {
         mod unsupported;
         use unsupported as imp;

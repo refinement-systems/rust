@@ -27,6 +27,7 @@ pub fn decode_error_kind(code: i32) -> ErrorKind {
         2 => ErrorKind::InvalidInput,
         3 => ErrorKind::OutOfMemory,
         4 => ErrorKind::BrokenPipe,
+        6 => ErrorKind::NotFound,
         _ => ErrorKind::Uncategorized,
     }
 }
