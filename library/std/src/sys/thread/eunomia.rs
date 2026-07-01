@@ -22,6 +22,10 @@ unsafe extern "Rust" {
     /// Set up this spawned thread's `TPIDR_EL0` TLS block (std-port 3.2) before
     /// `ThreadInit::init` runs `set_current` (which needs per-thread storage).
     fn __eunomia_tls_init_thread();
+    /// Run this thread's `thread_local!` destructors at exit (std-port 3.5).
+    fn __eunomia_tls_run_dtors();
+    /// Reclaim this thread's heap TLS block at exit (std-port 3.5; fixes the leak).
+    fn __eunomia_tls_free_thread();
 }
 
 // The fixed thread-stack size the seam maps (`urt::thread_layout::STACK_PAGES *
@@ -54,6 +58,16 @@ impl Thread {
                 ));
                 let rust_start = init.init();
                 rust_start();
+                // Thread-exit teardown (std-port 3.5): eunomia owns thread exit, so
+                // it runs the `thread_local!` destructors and the runtime cleanup
+                // itself (the hermit posture), then reclaims the TLS block. Order
+                // mirrors upstream's `guard`: user destructors, then `thread_cleanup`
+                // (drops the `Thread` handle, reading `CURRENT`/`ID` — dtorless keys,
+                // so untouched by the run above), then free the block (nothing reads
+                // TLS after this).
+                __eunomia_tls_run_dtors();
+                crate::rt::thread_cleanup();
+                __eunomia_tls_free_thread();
                 __eunomia_thread_exit(0)
             }
         }

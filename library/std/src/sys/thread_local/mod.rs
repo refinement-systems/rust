@@ -24,17 +24,11 @@
 )]
 
 cfg_select! {
-    // Eunomia has real per-thread TLS (std-port 3.2): `local_pointer!` rides a
-    // `TPIDR_EL0`-based per-thread block (`eunomia`), so `set_current` works on
-    // more than one thread. The `thread_local!` macro storage stays the
-    // single-threaded `no_threads` version for now (std-port 3.4/3.5).
-    target_os = "eunomia" => {
-        #[allow(dead_code)] // only the storage half is used; `eunomia` overrides LocalPointer
-        mod no_threads;
-        pub use no_threads::{EagerStorage, LazyStorage, thread_local_inner};
-        mod eunomia;
-        pub(crate) use eunomia::{LocalPointer, local_pointer};
-    }
+    // Eunomia uses the library key-based storage (`os`, std-port 3.5): it is not
+    // `target_thread_local`, so real per-thread `thread_local!` storage rides a TLS
+    // key (an index into the `TPIDR_EL0` block) over the verified `urt::tls` key
+    // table — see the `key` and `guard` arms below. It therefore falls through to
+    // the `_ => mod os` arm along with the other key-based targets.
     any(
         all(target_family = "wasm", not(target_feature = "atomics")),
         target_os = "uefi",
@@ -111,7 +105,6 @@ pub(crate) mod guard {
             target_os = "zkvm",
             target_os = "trusty",
             target_os = "vexos",
-            target_os = "eunomia",
         ) => {
             pub(crate) fn enable() {
                 // FIXME: Right now there is no concept of "thread exit" on
@@ -130,6 +123,11 @@ pub(crate) mod guard {
         any(
             target_os = "hermit",
             target_os = "xous",
+            // Eunomia owns thread exit (the `sys/thread` trampoline and `_start`
+            // run the key destructors + `rt::thread_cleanup` themselves, std-port
+            // 3.5), so `os::destroy_value`'s `guard::enable` has nothing to
+            // schedule — `std` is the only runtime here too.
+            target_os = "eunomia",
         ) => {
             // `std` is the only runtime, so it just calls the destructor functions
             // itself when the time comes.
@@ -206,6 +204,18 @@ pub(crate) mod key {
             pub(super) use racy::LazyKey;
             pub(super) use moto_rt::tls::{Key, get, set};
             use moto_rt::tls::{create, destroy};
+        }
+        // Eunomia's key backend (std-port 3.5): keys over the seam
+        // (`eunomia_sys::tls` → the verified `urt::tls` key table), reached through
+        // the `__eunomia_tls_*` bridge like every other eunomia PAL surface (the
+        // seam crate cannot be a sysroot dep). The motor shape, minus the direct
+        // dependency.
+        target_os = "eunomia" => {
+            mod racy;
+            mod eunomia;
+            pub(super) use racy::LazyKey;
+            pub(super) use eunomia::{Key, get, set};
+            use eunomia::{create, destroy};
         }
         _ => {}
     }

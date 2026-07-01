@@ -26,6 +26,8 @@ unsafe extern "Rust" {
     /// Exit through the kernel thread-exit terminus (rev2§5.1); the parent reaper reads
     /// `code` as the child's status.
     fn __eunomia_thread_exit(code: u64) -> !;
+    /// Run the main thread's `thread_local!` destructors at exit (std-port 3.5).
+    fn __eunomia_tls_run_dtors();
 }
 
 // The non-crt0 process entry (rev2§5.1). Eunomia has no C runtime: the ELF entry is
@@ -49,6 +51,15 @@ pub extern "C" fn _start() -> ! {
         fn main(argc: isize, argv: *const *const u8, sigpipe: u8) -> i32;
     }
     let code = unsafe { main(0, core::ptr::null(), 0) };
+
+    // Main-thread TLS teardown (std-port 3.5): run the main thread's `thread_local!`
+    // destructors and drop its current-thread handle. `lang_start_internal` never
+    // calls `thread_cleanup` for main, so this is additive, not a double free. The
+    // block is the static `.bss` `MAIN`, so there is nothing to reclaim.
+    unsafe {
+        __eunomia_tls_run_dtors();
+        crate::rt::thread_cleanup();
+    }
 
     // Orderly exit: the parent reaper reads this status. A panic in a std binary instead
     // routes through `abort_internal` → `thread_exit(STATUS_PANIC)` (overridden in
