@@ -3,6 +3,11 @@
 mod common;
 pub use common::*;
 
+// The `sys::futex` backend (std-port 3.3): surfaced as `crate::sys::futex` by the
+// `sys/mod.rs` `pub use pal::*` glob (mirroring `sys/pal/motor`'s `pub use
+// moto_rt::futex`), so the five `sys/sync/*` dispatchers pick the futex impls.
+pub mod futex;
+
 // The eunomia PAL↔seam ABI (the `__rust_alloc` pattern). The seam crate `eunomia-sys`
 // cannot be a std/sysroot dependency — its verified deps pull `vstd`, whose
 // `verus_builtin` is not buildable as a `rustc-dep-of-std` sysroot crate. So std

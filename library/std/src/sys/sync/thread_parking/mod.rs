@@ -9,6 +9,7 @@ cfg_select! {
         target_os = "dragonfly",
         target_os = "fuchsia",
         target_os = "motor",
+        target_os = "eunomia",
         target_os = "hermit",
     ) => {
         mod futex;
