@@ -66,6 +66,12 @@ cfg_select! {
         mod motor;
         pub use motor::fill_bytes;
     }
+    target_os = "eunomia" => {
+        // The per-process DRBG seam (std-port 3.4); `hashmap_random_keys` is the
+        // generic one below, which calls this `fill_bytes` — the `motor` shape.
+        mod eunomia;
+        pub use eunomia::fill_bytes;
+    }
     all(target_vendor = "fortanix", target_env = "sgx") => {
         mod sgx;
         pub use sgx::fill_bytes;
@@ -106,7 +112,6 @@ cfg_select! {
         all(target_family = "wasm", target_os = "unknown"),
         target_os = "xous",
         target_os = "vexos",
-        target_os = "eunomia",
     ) => {
         // FIXME: finally remove std support for wasm32-unknown-unknown
         // FIXME: add random data generation to xous
@@ -123,7 +128,6 @@ cfg_select! {
     all(target_os = "wasi", not(target_env = "p1")),
     target_os = "xous",
     target_os = "vexos",
-    target_os = "eunomia",
 )))]
 pub fn hashmap_random_keys() -> (u64, u64) {
     let mut buf = [0; 16];
