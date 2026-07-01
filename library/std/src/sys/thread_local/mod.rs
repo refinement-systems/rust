@@ -24,13 +24,23 @@
 )]
 
 cfg_select! {
+    // Eunomia has real per-thread TLS (std-port 3.2): `local_pointer!` rides a
+    // `TPIDR_EL0`-based per-thread block (`eunomia`), so `set_current` works on
+    // more than one thread. The `thread_local!` macro storage stays the
+    // single-threaded `no_threads` version for now (std-port 3.4/3.5).
+    target_os = "eunomia" => {
+        #[allow(dead_code)] // only the storage half is used; `eunomia` overrides LocalPointer
+        mod no_threads;
+        pub use no_threads::{EagerStorage, LazyStorage, thread_local_inner};
+        mod eunomia;
+        pub(crate) use eunomia::{LocalPointer, local_pointer};
+    }
     any(
         all(target_family = "wasm", not(target_feature = "atomics")),
         target_os = "uefi",
         target_os = "zkvm",
         target_os = "trusty",
         target_os = "vexos",
-        target_os = "eunomia",
     ) => {
         mod no_threads;
         pub use no_threads::{EagerStorage, LazyStorage, thread_local_inner};

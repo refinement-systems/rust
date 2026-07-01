@@ -2,8 +2,9 @@ use crate::alloc::{GlobalAlloc, Layout, System};
 
 // Provided by the seam crate `eunomia-sys` (see `sys/pal/eunomia/mod.rs` for why
 // this is an `extern "Rust"` symbol rather than a direct call): the process-global
-// `urt::Heap<N>` over the Verus-verified `freelist` allocator. MVP bounds: the heap
-// is single-threaded with no lock (threads are std-port Phase 3); `MAX_ALIGN = 64`
+// `urt::Heap<N>` over the Verus-verified `freelist` allocator. Concurrent
+// allocation by in-process threads is serialized by the heap's yielding spinlock
+// (std-port 3.2, Loom-certified). MVP bounds: `MAX_ALIGN = 64`
 // (a request aligned above 64 — e.g. a page — returns null = clean OOM, not UB); a
 // fragmentation cap of 1024 free extents is a second, independent limit (a dealloc
 // at the cap leaks the block); and OOM is a hard abort (null -> handle_alloc_error),

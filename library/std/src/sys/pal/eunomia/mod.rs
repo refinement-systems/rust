@@ -13,6 +13,9 @@ pub use common::*;
 // — they all name the one external symbol. Everything across this seam is verified or
 // host-tested inside `eunomia-sys`; the PAL only marshals.
 unsafe extern "Rust" {
+    /// Point the main thread's `TPIDR_EL0` at its TLS block (std-port 3.2), before any
+    /// `local_pointer!` access (`set_current` on the main thread).
+    fn __eunomia_tls_init_main();
     /// Receive + verified-decode the slot-0 startup block and stash argv/env/grants.
     fn __eunomia_bootstrap_init();
     /// Exit through the kernel thread-exit terminus (rev2§5.1); the parent reaper reads
@@ -25,6 +28,11 @@ unsafe extern "Rust" {
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
+    // Real per-thread TLS for the main thread (std-port 3.2): point `TPIDR_EL0` at
+    // its block before anything (bootstrap or the `main`/`lang_start` rt) touches a
+    // `local_pointer!` (the current-thread handle/id).
+    unsafe { __eunomia_tls_init_main() };
+
     // Receive + verified-decode the bootstrap block and stash it (so `sys::args`,
     // `sys::env`, and later grant lookups have data) before `main` runs.
     unsafe { __eunomia_bootstrap_init() };

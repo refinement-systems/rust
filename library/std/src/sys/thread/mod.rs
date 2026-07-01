@@ -10,6 +10,10 @@ cfg_select! {
         mod motor;
         pub use motor::*;
     }
+    target_os = "eunomia" => {
+        mod eunomia;
+        pub use eunomia::*;
+    }
     all(target_vendor = "fortanix", target_env = "sgx") => {
         mod sgx;
         pub use sgx::{Thread, current_os_id, sleep, yield_now, DEFAULT_MIN_STACK_SIZE};
