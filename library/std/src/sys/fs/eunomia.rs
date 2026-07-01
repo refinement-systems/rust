@@ -14,8 +14,11 @@
 //! Surface that is `Unsupported` by construction (rev2§4.9 has none of it): symlinks
 //! / hard links / readlink / canonicalize; permissions / `chmod`; `set_times`;
 //! `truncate`/`set_len`; `mkdir` (creation is a side effect of `Write`); file locks;
-//! `duplicate`. Metadata is minimal (size + file/dir); mtime and the fuller
-//! `ErrorCode`→`ErrorKind` table are 4.3.
+//! `duplicate`. Metadata (std-port 4.3) carries the entry size and file/dir type —
+//! `stat` probes `List` when the entry has no file content, so a directory reports
+//! `is_dir` — with `is_symlink` always false. mtime/atime stay `Unsupported` (a
+//! deferred storage-wire extension); the full `ErrorCode`→`ErrorKind` decision table
+//! lives in `eunomia_sys::io_error` (its kinds surface through `decode_error_kind`).
 
 use crate::ffi::{OsStr, OsString};
 use crate::fmt;
@@ -30,13 +33,27 @@ use crate::sys::time::SystemTime;
 use crate::sys::{FromInner, unsupported};
 use crate::vec::Vec;
 
+/// Directory-aware metadata crossing the seam from `eunomia_sys::fs::Meta` (std-port
+/// 4.3): the entry kind + size. `#[repr(C)]` with fields in the same order as the seam
+/// crate's `Meta` — that fixed layout is what makes the by-value return sound across
+/// `extern "Rust"` (the `Vec<u8>` return posture, made explicit). `code == 0` means
+/// `size`/`is_dir` are meaningful; a `< 0 code` is a raw fs code (`size`/`is_dir` zero).
+#[repr(C)]
+struct FsMeta {
+    code: i64,
+    size: u64,
+    is_dir: bool,
+}
+
 // Provided by the seam crate `eunomia-sys` (its `#[no_mangle]` `pal.rs` shims over
 // `eunomia_sys::fs`). Raw path *bytes* cross the seam; a `< 0` return is a raw fs
-// code. `readdir` returns the flat entry buffer decoded by `parse_listing` below.
+// code. `readdir` returns the flat entry buffer decoded by `parse_listing` below;
+// `metadata` returns the `FsMeta` above (its layout mirrored in the seam crate).
 unsafe extern "Rust" {
     fn __eunomia_fs_read(path: &[u8], offset: u64, buf: &mut [u8]) -> i64;
     fn __eunomia_fs_write(path: &[u8], offset: u64, data: &[u8]) -> i64;
     fn __eunomia_fs_stat(path: &[u8]) -> i64;
+    fn __eunomia_fs_metadata(path: &[u8]) -> FsMeta;
     fn __eunomia_fs_rename(from: &[u8], to: &[u8]) -> i64;
     fn __eunomia_fs_unlink(path: &[u8]) -> i64;
     fn __eunomia_fs_sync() -> i64;
@@ -295,11 +312,7 @@ impl File {
     }
 
     pub fn file_attr(&self) -> io::Result<FileAttr> {
-        let r = stat_size(path_bytes(&self.path));
-        if r < 0 {
-            return Err(err(r));
-        }
-        Ok(FileAttr { size: r as u64, is_dir: false })
+        stat_attr(&self.path)
     }
 
     pub fn fsync(&self) -> io::Result<()> {
@@ -559,12 +572,15 @@ pub fn link(_src: &Path, _dst: &Path) -> io::Result<()> {
     unsupported()
 }
 
+/// Directory-aware metadata (std-port 4.3): the seam probes `Stat` then `List`, so a
+/// directory reports `is_dir` (a file reports its size). `< 0 code` → the fs error.
 fn stat_attr(p: &Path) -> io::Result<FileAttr> {
-    let r = stat_size(path_bytes(p));
-    if r < 0 {
-        return Err(err(r));
+    // SAFETY: plain marshalling call; the borrowed slice outlives it.
+    let m = unsafe { __eunomia_fs_metadata(path_bytes(p)) };
+    if m.code < 0 {
+        return Err(err(m.code));
     }
-    Ok(FileAttr { size: r as u64, is_dir: false })
+    Ok(FileAttr { size: m.size, is_dir: m.is_dir })
 }
 
 pub fn stat(p: &Path) -> io::Result<FileAttr> {

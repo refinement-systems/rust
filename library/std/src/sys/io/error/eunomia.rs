@@ -20,7 +20,9 @@ pub fn is_interrupted(_code: i32) -> bool {
 
 pub fn decode_error_kind(code: i32) -> ErrorKind {
     // Mirrors `eunomia_sys::io_error::Kind` (the host-tested single source of truth);
-    // its `#[repr(u8)]` discriminants are fixed in lockstep with this match.
+    // its `#[repr(u8)]` discriminants are fixed in lockstep with this match. The 7..
+    // discriminants are the std-port 4.3 fs decision table; each is a stable
+    // `io::ErrorKind`. `5` (`Kind::Uncategorized`) rides the `_` fallback.
     match unsafe { __eunomia_io_classify(code as i64) } {
         0 => ErrorKind::PermissionDenied,
         1 => ErrorKind::WouldBlock,
@@ -28,6 +30,12 @@ pub fn decode_error_kind(code: i32) -> ErrorKind {
         3 => ErrorKind::OutOfMemory,
         4 => ErrorKind::BrokenPipe,
         6 => ErrorKind::NotFound,
+        7 => ErrorKind::NotADirectory,
+        8 => ErrorKind::ReadOnlyFilesystem,
+        9 => ErrorKind::StaleNetworkFileHandle,
+        10 => ErrorKind::InvalidFilename,
+        11 => ErrorKind::NotConnected,
+        12 => ErrorKind::ResourceBusy,
         _ => ErrorKind::Uncategorized,
     }
 }
