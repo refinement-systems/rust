@@ -49,6 +49,13 @@
 
 extern crate alloc;
 
+// Eunomia OS: force the PAL↔seam bridge (eunomia-sys) into the link so std's
+// undefined `__eunomia_*` extern "Rust" symbols resolve when this suite is built
+// as an on-target libtest binary (std-port 6.1). Cfg-gated so host/x.py builds are
+// unaffected. The `user/alloctests` manifest supplies the dependency.
+#[cfg(target_os = "eunomia")]
+extern crate eunomia_sys;
+
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 mod alloc_test;
