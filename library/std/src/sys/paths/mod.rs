@@ -47,6 +47,15 @@ cfg_select! {
         mod windows;
         use windows as imp;
     }
+    target_os = "eunomia" => {
+        mod eunomia;
+        #[expect(dead_code)]
+        mod unsupported;
+        mod imp {
+            pub use super::eunomia::temp_dir;
+            pub use super::unsupported::{getcwd, chdir, current_exe, SplitPaths, split_paths, JoinPathsError, join_paths, home_dir};
+        }
+    }
     _ => {
         mod unsupported;
         use unsupported as imp;
