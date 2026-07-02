@@ -45,10 +45,27 @@ struct FsMeta {
     is_dir: bool,
 }
 
+/// One `read_dir` entry head crossing the seam from `eunomia_sys::readdir::DirEntMeta`
+/// (std-port 4.1): `#[repr(C)]` with fields in the same order as the seam crate's
+/// `DirEntMeta` — that fixed layout is what makes the by-value return sound across
+/// `extern "Rust"` (the `FsMeta`/`Meta` posture; a review-coupled twin, no compile-time
+/// cross-check). `code` is the tag: `0` = an entry (`kind`/`size`/`name_len` meaningful,
+/// the name copied into the caller's buffer), `1` = end of listing, `< 0` = a raw fs code.
+/// `kind` is `0` for a file, `1` for a directory.
+#[repr(C)]
+struct FsDirEntMeta {
+    code: i64,
+    kind: u8,
+    size: u64,
+    name_len: u16,
+}
+
 // Provided by the seam crate `eunomia-sys` (its `#[no_mangle]` `pal.rs` shims over
 // `eunomia_sys::fs`). Raw path *bytes* cross the seam; a `< 0` return is a raw fs
-// code. `readdir` returns the flat entry buffer decoded by `parse_listing` below;
-// `metadata` returns the `FsMeta` above (its layout mirrored in the seam crate).
+// code. `read_dir` is a cursor protocol — `_open` snapshots the listing behind an integer
+// handle, `_next` copies one entry's name into the caller's buffer and returns the
+// `FsDirEntMeta` head (its layout mirrored in the seam crate, the `FsMeta` posture),
+// `_close` releases the snapshot; `metadata` returns the `FsMeta` above.
 unsafe extern "Rust" {
     fn __eunomia_fs_read(path: &[u8], offset: u64, buf: &mut [u8]) -> i64;
     fn __eunomia_fs_write(path: &[u8], offset: u64, data: &[u8]) -> i64;
@@ -57,7 +74,9 @@ unsafe extern "Rust" {
     fn __eunomia_fs_rename(from: &[u8], to: &[u8]) -> i64;
     fn __eunomia_fs_unlink(path: &[u8]) -> i64;
     fn __eunomia_fs_sync() -> i64;
-    fn __eunomia_fs_readdir(path: &[u8]) -> Vec<u8>;
+    fn __eunomia_fs_readdir_open(path: &[u8]) -> i64;
+    fn __eunomia_fs_readdir_next(handle: i64, name_buf: &mut [u8]) -> FsDirEntMeta;
+    fn __eunomia_fs_readdir_close(handle: i64);
 }
 
 /// The raw path bytes eunomia sends over the seam (its `OsStr` is bytes, rev2§4.9).
@@ -94,14 +113,9 @@ pub struct FileAttr {
 pub struct ReadDir {
     /// The listed directory, for `DirEntry::path`.
     parent: PathBuf,
-    entries: Vec<RawEntry>,
-    idx: usize,
-}
-
-struct RawEntry {
-    name: Vec<u8>,
-    is_dir: bool,
-    size: u64,
+    /// The open snapshot handle in the seam crate's `read_dir` table (`>= 0`): the listing
+    /// is captured at `read_dir` time and walked one entry per `next`, released on `Drop`.
+    handle: i64,
 }
 
 pub struct DirEntry {
@@ -210,14 +224,29 @@ impl Iterator for ReadDir {
     type Item = io::Result<DirEntry>;
 
     fn next(&mut self) -> Option<io::Result<DirEntry>> {
-        let e = self.entries.get(self.idx)?;
-        self.idx += 1;
-        Some(Ok(DirEntry {
-            parent: self.parent.clone(),
-            name: e.name.clone(),
-            is_dir: e.is_dir,
-            size: e.size,
-        }))
+        // The seam bounds a name at the 255-byte path component (rev2§4.9), so a listing
+        // never carries a longer one and an over-long name is refused, not truncated.
+        let mut name = [0u8; 255];
+        // SAFETY: plain marshalling call; `name` outlives it.
+        let head = unsafe { __eunomia_fs_readdir_next(self.handle, &mut name) };
+        match head.code {
+            0 => Some(Ok(DirEntry {
+                parent: self.parent.clone(),
+                name: name[..head.name_len as usize].to_vec(),
+                is_dir: head.kind == 1,
+                size: head.size,
+            })),
+            1 => None,
+            code => Some(Err(err(code))),
+        }
+    }
+}
+
+impl Drop for ReadDir {
+    fn drop(&mut self) {
+        // Release the seam-side snapshot. SAFETY: plain marshalling call; `handle` came
+        // from `__eunomia_fs_readdir_open` and is closed exactly once (here).
+        unsafe { __eunomia_fs_readdir_close(self.handle) };
     }
 }
 
@@ -478,48 +507,15 @@ impl fmt::Debug for File {
     }
 }
 
-// ── The readdir flat buffer (shared with `eunomia_sys::fs`) ──
-// byte 0: 0 = ok (entries follow), 1 = error (8-byte i64 LE code follows)
-// each entry: [kind: u8 (0=file,1=dir)][size: u64 LE][name_len: u16 LE][name…]
-fn parse_listing(parent: &Path, buf: &[u8]) -> io::Result<ReadDir> {
-    let mut it = buf.iter().copied();
-    match it.next() {
-        Some(0) => {}
-        Some(1) => {
-            let mut code = [0u8; 8];
-            for c in &mut code {
-                *c = it.next().unwrap_or(0);
-            }
-            return Err(err(i64::from_le_bytes(code)));
-        }
-        // A malformed/empty buffer (the seam always tags its output) — treat as a
-        // transport error rather than an empty listing.
-        _ => return Err(io::Error::from(io::ErrorKind::InvalidData)),
-    }
-    let mut rest = &buf[1..];
-    let mut entries = Vec::new();
-    while !rest.is_empty() {
-        // kind(1) + size(8) + name_len(2) = 11-byte fixed head.
-        if rest.len() < 11 {
-            return Err(io::Error::from(io::ErrorKind::InvalidData));
-        }
-        let is_dir = rest[0] == 1;
-        let size = u64::from_le_bytes(rest[1..9].try_into().unwrap());
-        let name_len = u16::from_le_bytes(rest[9..11].try_into().unwrap()) as usize;
-        rest = &rest[11..];
-        if rest.len() < name_len {
-            return Err(io::Error::from(io::ErrorKind::InvalidData));
-        }
-        entries.push(RawEntry { name: rest[..name_len].to_vec(), is_dir, size });
-        rest = &rest[name_len..];
-    }
-    Ok(ReadDir { parent: parent.to_path_buf(), entries, idx: 0 })
-}
-
 pub fn readdir(p: &Path) -> io::Result<ReadDir> {
-    // SAFETY: plain marshalling call; the returned `Vec<u8>` is owned across the seam.
-    let buf = unsafe { __eunomia_fs_readdir(path_bytes(p)) };
-    parse_listing(p, &buf)
+    // Open a seam-side snapshot of the listing; a `< 0` handle is the fs error, surfaced
+    // here (like a failed open) rather than mid-iteration. SAFETY: plain marshalling call;
+    // the borrowed path outlives it.
+    let handle = unsafe { __eunomia_fs_readdir_open(path_bytes(p)) };
+    if handle < 0 {
+        return Err(err(handle));
+    }
+    Ok(ReadDir { parent: p.to_path_buf(), handle })
 }
 
 pub fn unlink(p: &Path) -> io::Result<()> {
