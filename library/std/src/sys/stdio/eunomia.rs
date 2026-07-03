@@ -1,8 +1,8 @@
 use crate::io;
 
 // Provided by the seam crate `eunomia-sys` (see `sys/pal/eunomia/mod.rs`). std-port 5.1
-// routes ordinary stdout/stdin/stderr over the userspace `user/console` channel (rev2§5.1);
-// panic last-words stay on the kernel debug-log (`__eunomia_stdio_write`, rev2§7 C-M9) so
+// routes ordinary stdout/stdin/stderr over the userspace `user/console` channel (rev3§5.1);
+// panic last-words stay on the kernel debug-log (`__eunomia_stdio_write`, rev3§7 C-M9) so
 // reporting never depends on the console — which may be the very thing that wedged. All
 // marshalling — console chunking/backpressure, the read carry, the debug-log chunking —
 // lives in the seam; these arms only delegate.
@@ -13,7 +13,7 @@ unsafe extern "Rust" {
     fn __eunomia_stdout_write(buf: &[u8]) -> usize;
     fn __eunomia_stderr_write(buf: &[u8]) -> usize;
     fn __eunomia_stdin_read(buf: &mut [u8]) -> usize;
-    // Panic last-words: the kernel debug-log (rev2§7).
+    // Panic last-words: the kernel debug-log (rev3§7).
     fn __eunomia_stdio_write(buf: &[u8]) -> usize;
 }
 
@@ -88,7 +88,7 @@ pub fn is_ebadf(_err: &io::Error) -> bool {
     true
 }
 
-// A dedicated writer for panic last-words on the debug-log path (rev2§7 C-M9). std-port
+// A dedicated writer for panic last-words on the debug-log path (rev3§7 C-M9). std-port
 // 5.1 keeps panic reporting here even as `Stdout`/`Stderr` moved to the console, so a
 // wedged console cannot swallow a panic; the distinct type isolates `panic_output` from
 // that console routing.

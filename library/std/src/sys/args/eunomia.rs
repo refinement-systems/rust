@@ -11,7 +11,7 @@ unsafe extern "Rust" {
 }
 
 pub fn args() -> Args {
-    // argv arrives as raw byte-strings in the startup block (rev2§5.1). eunomia's
+    // argv arrives as raw byte-strings in the startup block (rev3§5.1). eunomia's
     // `OsStr` is the bytes encoding (no WTF-8), so each byte-string maps straight to an
     // `OsString` via the internal `Buf` — no lossy UTF-8 round-trip, no `os::eunomia`
     // ffi shim.

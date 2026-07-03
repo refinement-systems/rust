@@ -10,7 +10,7 @@ unsafe extern "Rust" {
     fn __eunomia_env() -> &'static [&'static [u8]];
 }
 
-// Env entries are raw `KEY=VALUE` byte-strings (POSIX `environ` convention, rev2§5.1).
+// Env entries are raw `KEY=VALUE` byte-strings (POSIX `environ` convention, rev3§5.1).
 // Split on the first `=`; an entry with no `=` is a key with an empty value.
 fn split_kv(entry: &[u8]) -> (&[u8], &[u8]) {
     match entry.iter().position(|&c| c == b'=') {

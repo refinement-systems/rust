@@ -7,11 +7,11 @@
 //!
 //! `File = (path, cursor)`: storaged is offset-stateless, so the seek cursor lives
 //! here and `read`/`write` pass an explicit offset. eunomia's `OsStr` is bytes
-//! (rev2§4.9), so a path crosses the seam as its raw encoded bytes; the seam splits
+//! (rev3§4.9), so a path crosses the seam as its raw encoded bytes; the seam splits
 //! it into tree components (the 4.2 seam). A `< 0` return is a raw fs code the arm
 //! wraps with `io::Error::from_raw_os_error` (kind via `decode_error_kind`).
 //!
-//! Surface that is `Unsupported` by construction (rev2§4.9 has none of it): symlinks
+//! Surface that is `Unsupported` by construction (rev3§4.9 has none of it): symlinks
 //! / hard links / readlink / canonicalize; permissions / `chmod`; `set_times`;
 //! `truncate`/`set_len`; `mkdir` (creation is a side effect of `Write`); file locks;
 //! `duplicate`. Metadata (std-port 4.3) carries the entry size and file/dir type —
@@ -79,7 +79,7 @@ unsafe extern "Rust" {
     fn __eunomia_fs_readdir_close(handle: i64);
 }
 
-/// The raw path bytes eunomia sends over the seam (its `OsStr` is bytes, rev2§4.9).
+/// The raw path bytes eunomia sends over the seam (its `OsStr` is bytes, rev3§4.9).
 fn path_bytes(p: &Path) -> &[u8] {
     p.as_os_str().as_encoded_bytes()
 }
@@ -138,7 +138,7 @@ pub struct OpenOptions {
 #[derive(Copy, Clone, Debug, Default)]
 pub struct FileTimes {}
 
-/// The store has no mode bits — authority is the capability rights mask (rev2§2.3),
+/// The store has no mode bits — authority is the capability rights mask (rev3§2.3),
 /// so a file is never "read-only" in the POSIX sense. Carried so the type exists.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct FilePermissions {
@@ -167,13 +167,13 @@ impl FileAttr {
     }
 
     pub fn modified(&self) -> io::Result<SystemTime> {
-        // mtime is a mandatory rev2§4.9 field absent from the current wire protocol
+        // mtime is a mandatory rev3§4.9 field absent from the current wire protocol
         // (a deferred storage-wire extension); unsupported for now.
         unsupported()
     }
 
     pub fn accessed(&self) -> io::Result<SystemTime> {
-        // No atime in the store (rev2§4.9).
+        // No atime in the store (rev3§4.9).
         unsupported()
     }
 
@@ -189,7 +189,7 @@ impl FilePermissions {
 
     pub fn set_readonly(&mut self, readonly: bool) {
         // A local flag only; applying it (`set_perm`) is Unsupported — the store has
-        // no mode bits (rev2§2.3).
+        // no mode bits (rev3§2.3).
         self.readonly = readonly;
     }
 }
@@ -209,7 +209,7 @@ impl FileType {
     }
 
     pub fn is_symlink(&self) -> bool {
-        // No symlinks in the store (rev2§4.9).
+        // No symlinks in the store (rev3§4.9).
         false
     }
 }
@@ -224,7 +224,7 @@ impl Iterator for ReadDir {
     type Item = io::Result<DirEntry>;
 
     fn next(&mut self) -> Option<io::Result<DirEntry>> {
-        // The seam bounds a name at the 255-byte path component (rev2§4.9), so a listing
+        // The seam bounds a name at the 255-byte path component (rev3§4.9), so a listing
         // never carries a longer one and an over-long name is refused, not truncated.
         let mut name = [0u8; 255];
         // SAFETY: plain marshalling call; `name` outlives it.
@@ -324,7 +324,7 @@ impl File {
             }
         }
         // Truncate: emulate by dropping any existing content — creation is a side
-        // effect of the first `Write` (rev2§4.9), so a fresh path is `NotFound`
+        // effect of the first `Write` (rev3§4.9), so a fresh path is `NotFound`
         // (ignored). Skipped for `create_new` (nothing to truncate).
         if opts.truncate && !opts.create_new {
             // SAFETY: plain marshalling call.
@@ -345,7 +345,7 @@ impl File {
     }
 
     pub fn fsync(&self) -> io::Result<()> {
-        // storaged syncs the whole ref (rev2§4.4), a superset of one file's fsync.
+        // storaged syncs the whole ref (rev3§4.4), a superset of one file's fsync.
         // SAFETY: plain marshalling call.
         let r = unsafe { __eunomia_fs_sync() };
         if r == 0 { Ok(()) } else { Err(err(r)) }
@@ -376,7 +376,7 @@ impl File {
     }
 
     pub fn truncate(&self, _size: u64) -> io::Result<()> {
-        // No `set_len`/truncate op in the store (rev2§4.9).
+        // No `set_len`/truncate op in the store (rev3§4.9).
         unsupported()
     }
 
@@ -496,7 +496,7 @@ impl DirBuilder {
 
     pub fn mkdir(&self, _p: &Path) -> io::Result<()> {
         // Directories are created as a side effect of writing a file beneath them
-        // (rev2§4.9); there is no explicit empty-directory creation.
+        // (rev3§4.9); there is no explicit empty-directory creation.
         unsupported()
     }
 }
@@ -531,7 +531,7 @@ pub fn rename(old: &Path, new: &Path) -> io::Result<()> {
 }
 
 pub fn set_perm(_p: &Path, _perm: FilePermissions) -> io::Result<()> {
-    // Authority is the cap rights mask, not mode bits (rev2§2.3).
+    // Authority is the cap rights mask, not mode bits (rev3§2.3).
     unsupported()
 }
 
@@ -544,7 +544,7 @@ pub fn set_times_nofollow(_p: &Path, _times: FileTimes) -> io::Result<()> {
 }
 
 pub fn rmdir(_p: &Path) -> io::Result<()> {
-    // No explicit directory removal op (directories are implicit, rev2§4.9).
+    // No explicit directory removal op (directories are implicit, rev3§4.9).
     unsupported()
 }
 
@@ -584,12 +584,12 @@ pub fn stat(p: &Path) -> io::Result<FileAttr> {
 }
 
 pub fn lstat(p: &Path) -> io::Result<FileAttr> {
-    // No symlinks, so lstat == stat (rev2§4.9).
+    // No symlinks, so lstat == stat (rev3§4.9).
     stat_attr(p)
 }
 
 pub fn canonicalize(_p: &Path) -> io::Result<PathBuf> {
-    // No ambient root/`..` resolution service (handle-relative, rev2§4.9).
+    // No ambient root/`..` resolution service (handle-relative, rev3§4.9).
     unsupported()
 }
 

@@ -101,7 +101,7 @@ pub fn current_os_id() -> Option<u64> {
 }
 
 pub fn available_parallelism() -> io::Result<NonZeroUsize> {
-    // Single-core scheduler (rev2§5.4).
+    // Single-core scheduler (rev3§5.4).
     Ok(NonZeroUsize::new(1).unwrap())
 }
 

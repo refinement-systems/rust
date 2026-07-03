@@ -4,7 +4,7 @@ use crate::time::Duration;
 // are `extern "Rust"` symbols rather than direct calls): monotonic nanoseconds for
 // `Instant` (the CNTVCT/CNTFRQ virtual counter via urt's Verus-verified `utc_ns_at`, no
 // `"time"` grant needed) and wall-clock nanoseconds since the Unix epoch for
-// `SystemTime` (the rev2§2.6 time page; the seam panics if no `"time"` grant was
+// `SystemTime` (the rev3§2.6 time page; the seam panics if no `"time"` grant was
 // attached). Both return `i64` ns; this arm only wraps them into std's `Duration`-based
 // types and re-establishes `Duration`'s non-negativity precondition at the boundary
 // (`ns.max(0) as u64` — the §11 inverse-leak guard). All clock logic lives in the seam.
@@ -51,7 +51,7 @@ impl SystemTime {
     pub fn now() -> SystemTime {
         // The MVP RTC is always post-1970, so the wall clock is non-negative; `max(0)`
         // re-establishes `from_nanos`'s `u64` domain for any pre-epoch corruption.
-        // SAFETY: a pure delegation to the seam (the rev2§2.6 time-page read).
+        // SAFETY: a pure delegation to the seam (the rev3§2.6 time-page read).
         let ns = unsafe { __eunomia_wall_ns() };
         SystemTime(Duration::from_nanos(ns.max(0) as u64))
     }

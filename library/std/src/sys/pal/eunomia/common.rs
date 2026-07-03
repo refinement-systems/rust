@@ -17,7 +17,7 @@ pub fn unsupported_err() -> std_io::Error {
 }
 
 pub fn abort_internal() -> ! {
-    // std owns the panic handler in a std binary, so the rev2§5.1 reaper contract is
+    // std owns the panic handler in a std binary, so the rev3§5.1 reaper contract is
     // preserved here: panic, OOM, and `process::abort()` all funnel through
     // `crate::sys::abort_internal` (panic -> `__rust_abort` -> `process::abort` -> here),
     // so this single override makes every abnormal stop reap as the reserved panic

@@ -83,7 +83,7 @@ pub fn exit(code: i32) -> ! {
             moto_rt::process::exit(code)
         }
         target_os = "eunomia" => {
-            // Exit through the kernel thread-exit terminus (rev2§5.1); the parent reaper
+            // Exit through the kernel thread-exit terminus (rev3§5.1); the parent reaper
             // reads the status (the seam shim, `sys/pal/eunomia`'s `__eunomia_thread_exit`).
             unsafe extern "Rust" {
                 fn __eunomia_thread_exit(code: u64) -> !;

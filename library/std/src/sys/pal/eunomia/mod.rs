@@ -23,14 +23,14 @@ unsafe extern "Rust" {
     fn __eunomia_tls_init_main();
     /// Receive + verified-decode the slot-0 startup block and stash argv/env/grants.
     fn __eunomia_bootstrap_init();
-    /// Exit through the kernel thread-exit terminus (rev2§5.1); the parent reaper reads
+    /// Exit through the kernel thread-exit terminus (rev3§5.1); the parent reaper reads
     /// `code` as the child's status.
     fn __eunomia_thread_exit(code: u64) -> !;
     /// Run the main thread's `thread_local!` destructors at exit (std-port 3.5).
     fn __eunomia_tls_run_dtors();
 }
 
-// The non-crt0 process entry (rev2§5.1). Eunomia has no C runtime: the ELF entry is
+// The non-crt0 process entry (rev3§5.1). Eunomia has no C runtime: the ELF entry is
 // `_start` (the `ENTRY(_start)` link.ld convention, rust-lld's default entry symbol).
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
